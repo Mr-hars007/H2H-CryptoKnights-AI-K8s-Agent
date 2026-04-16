@@ -1,0 +1,194 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: ai-ops
+  labels:
+    app: gateway
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: demo-shop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: demo-shop
+    spec:
+      containers:
+      - name: http-echo
+        image: hashicorp/http-echo:1.0.0
+        args:
+        - "-listen=:5678"
+        - "-text=gateway service healthy"
+        ports:
+        - containerPort: 5678
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        readinessProbe:
+          tcpSocket:
+            port: 5678
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        livenessProbe:
+          tcpSocket:
+            port: 5678
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: ai-ops
+  labels:
+    app: gateway
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: demo-shop
+spec:
+  selector:
+    app: gateway
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 5678
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders
+  namespace: ai-ops
+  labels:
+    app: orders
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: demo-shop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orders
+  template:
+    metadata:
+      labels:
+        app: orders
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: demo-shop
+    spec:
+      containers:
+      - name: http-echo
+        image: hashicorp/http-echo:1.0.0
+        args:
+        - "-listen=:5678"
+        - "-text=orders service healthy"
+        ports:
+        - containerPort: 5678
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        readinessProbe:
+          tcpSocket:
+            port: 5678
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        livenessProbe:
+          tcpSocket:
+            port: 5678
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders
+  namespace: ai-ops
+  labels:
+    app: orders
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: demo-shop
+spec:
+  selector:
+    app: orders
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 5678
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments
+  namespace: ai-ops
+  labels:
+    app: payments
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: demo-shop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payments
+  template:
+    metadata:
+      labels:
+        app: payments
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: demo-shop
+    spec:
+      containers:
+      - name: http-echo
+        image: hashicorp/http-echo:1.0.0
+        args:
+        - "-listen=:5678"
+        - "-text=payments service healthy"
+        ports:
+        - containerPort: 5678
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        readinessProbe:
+          tcpSocket:
+            port: 5678
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        livenessProbe:
+          tcpSocket:
+            port: 5678
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payments
+  namespace: ai-ops
+  labels:
+    app: payments
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: demo-shop
+spec:
+  selector:
+    app: payments
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 5678

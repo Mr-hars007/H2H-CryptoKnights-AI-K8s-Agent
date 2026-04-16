@@ -292,6 +292,8 @@ The validation plan includes at least 5 distinct diagnostic conversations:
 
 Active development: architecture defined, MVP locked, and core implementation underway.
 
+Phase 2 is implemented in `k8s/manifests/` with a deployable namespace and 3-service baseline app.
+
 ## Expected Impact
 
 - Reduce MTTR for Kubernetes incidents
