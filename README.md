@@ -237,6 +237,39 @@ streamlit run ui/streamlit_app.py
 3. Confirm tool-call and reasoning logs are written.
 4. Verify recommended fix and service recovery.
 
+## Phase 3 Chaos Operations
+
+List available scenarios:
+
+```powershell
+python backend/app.py list
+```
+
+Inject a scenario:
+
+```powershell
+python backend/app.py inject --scenario crashloop_orders --namespace ai-ops
+```
+
+Check cluster snapshot:
+
+```powershell
+python backend/app.py status --namespace ai-ops
+```
+
+Revert all chaos changes to the baseline manifests:
+
+```powershell
+python backend/app.py revert --namespace ai-ops
+```
+
+Available scenario keys:
+
+- `crashloop_orders`
+- `pending_payments`
+- `misconfigured_service_payments`
+- `oomkill_gateway`
+
 ## Demo Flow (Target)
 
 1. Deploy sample app in local cluster
@@ -293,6 +326,7 @@ The validation plan includes at least 5 distinct diagnostic conversations:
 Active development: architecture defined, MVP locked, and core implementation underway.
 
 Phase 2 is implemented in `k8s/manifests/` with a deployable namespace and 3-service baseline app.
+Phase 3 is implemented in `k8s/chaos/` and `backend/tools/chaos_injector.py` with four controlled fault scenarios and CLI controls.
 
 ## Expected Impact
 
