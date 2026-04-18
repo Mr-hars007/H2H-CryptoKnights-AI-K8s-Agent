@@ -2,3 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Local virtual environments
+.venv/
+.venv
+
+# Runtime traces/logs
+backend/traces/*.json

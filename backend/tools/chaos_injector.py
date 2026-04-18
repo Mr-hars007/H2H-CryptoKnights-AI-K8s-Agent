@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import subprocess
 from typing import Dict, List
@@ -11,6 +12,13 @@ from typing import Dict, List
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_KUSTOMIZE_DIR = REPO_ROOT / "k8s" / "manifests"
 CHAOS_MANIFESTS_DIR = REPO_ROOT / "k8s" / "chaos" / "manifests"
+DEFAULT_NAMESPACE = os.getenv("AI_K8S_NAMESPACE", "ai-ops")
+KUBECTL_BIN = os.getenv("AI_KUBECTL_BIN", "kubectl")
+DEFAULT_ROLLOUT_DEPLOYMENTS = [
+    item.strip()
+    for item in os.getenv("AI_K8S_DEPLOYMENTS", "gateway,orders,payments").split(",")
+    if item.strip()
+]
 
 
 @dataclass(frozen=True)
@@ -26,7 +34,7 @@ def _patch_path(file_name: str) -> str:
 
 
 def _kubectl(command: List[str], namespace: str | None = None) -> List[str]:
-    cmd = ["kubectl"]
+    cmd = [KUBECTL_BIN]
     if namespace:
         cmd.extend(["-n", namespace])
     cmd.extend(command)
@@ -34,7 +42,16 @@ def _kubectl(command: List[str], namespace: str | None = None) -> List[str]:
 
 
 def _run_command(command: List[str]) -> Dict[str, str | int | bool]:
-    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    except FileNotFoundError as exc:
+        return {
+            "ok": False,
+            "returncode": 127,
+            "stdout": "",
+            "stderr": str(exc),
+            "command": " ".join(command),
+        }
     return {
         "ok": completed.returncode == 0,
         "returncode": completed.returncode,
@@ -45,14 +62,14 @@ def _run_command(command: List[str]) -> Dict[str, str | int | bool]:
 
 
 def _baseline_apply_command() -> List[str]:
-    return ["kubectl", "apply", "-k", str(BASELINE_KUSTOMIZE_DIR)]
+    return [KUBECTL_BIN, "apply", "-k", str(BASELINE_KUSTOMIZE_DIR)]
 
 
 def list_scenarios() -> Dict[str, str]:
     return {name: scenario.description for name, scenario in SCENARIOS.items()}
 
 
-def inject_fault(scenario_name: str, namespace: str = "ai-ops") -> Dict[str, object]:
+def inject_fault(scenario_name: str, namespace: str = DEFAULT_NAMESPACE) -> Dict[str, object]:
     scenario = SCENARIOS.get(scenario_name)
     if scenario is None:
         return {
@@ -98,7 +115,7 @@ def inject_fault(scenario_name: str, namespace: str = "ai-ops") -> Dict[str, obj
     }
 
 
-def revert_fault(namespace: str = "ai-ops") -> Dict[str, object]:
+def revert_fault(namespace: str = DEFAULT_NAMESPACE) -> Dict[str, object]:
     step_results = []
 
     apply_baseline = _run_command(_baseline_apply_command())
@@ -106,7 +123,8 @@ def revert_fault(namespace: str = "ai-ops") -> Dict[str, object]:
     if not apply_baseline["ok"]:
         return {"ok": False, "steps": step_results}
 
-    rollout_restart = _run_command(_kubectl(["rollout", "restart", "deployment/gateway", "deployment/orders", "deployment/payments"], namespace=namespace))
+    rollout_targets = [f"deployment/{name}" for name in DEFAULT_ROLLOUT_DEPLOYMENTS]
+    rollout_restart = _run_command(_kubectl(["rollout", "restart", *rollout_targets], namespace=namespace))
     step_results.append(rollout_restart)
 
     status_result = _run_command(_kubectl(["get", "pods", "-o", "wide"], namespace=namespace))
@@ -115,7 +133,7 @@ def revert_fault(namespace: str = "ai-ops") -> Dict[str, object]:
     return {"ok": all(step["ok"] for step in step_results), "steps": step_results}
 
 
-def get_cluster_snapshot(namespace: str = "ai-ops") -> Dict[str, object]:
+def get_cluster_snapshot(namespace: str = DEFAULT_NAMESPACE) -> Dict[str, object]:
     steps = [
         _run_command(_kubectl(["get", "pods"], namespace=namespace)),
         _run_command(_kubectl(["get", "svc"], namespace=namespace)),

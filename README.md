@@ -270,6 +270,40 @@ Available scenario keys:
 - `misconfigured_service_payments`
 - `oomkill_gateway`
 
+## Phase 4 Observability Operations
+
+Collect a full evidence snapshot (pods, services, deployments, events, per-service pod logs, and describe outputs):
+
+```powershell
+python backend/app.py snapshot --namespace ai-ops
+```
+
+Collect a lighter snapshot without `describe` calls:
+
+```powershell
+python backend/app.py snapshot --namespace ai-ops --no-describe
+```
+
+Monitor cluster health over time:
+
+```powershell
+python backend/app.py monitor --namespace ai-ops --samples 5 --interval 10
+```
+
+List recent trace files:
+
+```powershell
+python backend/app.py traces --limit 20
+```
+
+View a specific trace by ID:
+
+```powershell
+python backend/app.py trace --trace-id <trace-id>
+```
+
+Trace files are persisted under `backend/traces/` as JSON and include command metadata plus full evidence payloads.
+
 ## Demo Flow (Target)
 
 1. Deploy sample app in local cluster
@@ -327,6 +361,7 @@ Active development: architecture defined, MVP locked, and core implementation un
 
 Phase 2 is implemented in `k8s/manifests/` with a deployable namespace and 3-service baseline app.
 Phase 3 is implemented in `k8s/chaos/` and `backend/tools/chaos_injector.py` with four controlled fault scenarios and CLI controls.
+Phase 4 is implemented in `backend/tools/evidence_collector.py` and `backend/tools/trace_logger.py` with CLI support in `backend/app.py`.
 
 ## Expected Impact
 
