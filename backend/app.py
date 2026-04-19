@@ -18,6 +18,7 @@ from tools import (
     revert_fault,
     write_trace,
 )
+from agent import create_agent, DiagnosisTraceCallback
 
 
 DEFAULT_NAMESPACE = os.getenv("AI_K8S_NAMESPACE", "ai-ops")
@@ -40,11 +41,11 @@ def _print_result(result: Dict[str, Any]) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="H2H CryptoKnights AI K8s Agent - Phase 3/4 controller",
+        description="H2H CryptoKnights AI K8s Agent - Phase 5 diagnosis integration",
     )
     parser.add_argument(
         "command",
-        choices=["list", "inject", "revert", "status", "snapshot", "monitor", "traces", "trace"],
+        choices=["list", "inject", "revert", "status", "snapshot", "monitor", "traces", "trace", "diagnose", "cli"],
         help="Operation to run",
     )
     parser.add_argument(
@@ -98,6 +99,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-describe",
         action="store_true",
         help="Skip kubectl describe commands during snapshot collection",
+    )
+    parser.add_argument(
+        "--question",
+        help="Natural language question for diagnose command",
     )
     return parser
 
@@ -182,6 +187,53 @@ def main() -> None:
             )
             raise SystemExit(2)
         _print_result(read_trace(trace_id=args.trace_id))
+        return
+
+    if args.command == "diagnose":
+        if not args.question:
+            _print_result(
+                {
+                    "ok": False,
+                    "error": "--question is required when command is diagnose",
+                }
+            )
+            raise SystemExit(2)
+        
+        print("🚀 Initializing AI diagnosis agent...", file=__import__("sys").stderr)
+        try:
+            agent = create_agent(namespace=args.namespace)
+        except Exception as e:
+            _print_result({
+                "ok": False,
+                "error": f"Failed to initialize agent: {e}",
+            })
+            raise SystemExit(1)
+        
+        print("⏳ Analyzing cluster...", file=__import__("sys").stderr)
+        trace_callback = DiagnosisTraceCallback()
+        result = agent.diagnose(args.question, trace_callback=trace_callback)
+        
+        # Write trace to disk
+        write_trace(
+            trace_type="diagnosis",
+            payload={
+                "question": args.question,
+                "diagnosis": result.get("diagnosis", "")[:500],
+                "trace_events": len(result.get("trace", [])),
+            },
+            metadata={
+                "namespace": args.namespace,
+                "command": "diagnose",
+            },
+        )
+        
+        _print_result(result)
+        return
+
+    if args.command == "cli":
+        print("🚀 Launching interactive diagnosis CLI...", file=__import__("sys").stderr)
+        from cli import main as cli_main
+        cli_main()
         return
 
 

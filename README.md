@@ -51,18 +51,18 @@ Most tools either monitor systems or run chaos tests separately. This project co
 
 This creates a complete and practical reliability workflow.
 
-## Core Features (MVP)
+## Core Features (MVP - All Complete ✅)
 
-- Dual mode operation: Fix and Chaos
-- Local Kubernetes support (Minikube/kind)
-- Demo app with 3 microservices
-- Controlled failure injection for core fault classes
-- Agentic loop (LangChain/LangGraph, CrewAI, or custom ReAct)
-- Natural language to kubectl command translation and execution
-- AI-assisted root cause analysis loop with actionable recommendations
-- Conversation context memory for follow-up queries across namespaces
-- Transparent tool-call and reasoning trace logs
-- CLI or lightweight UI for user interaction
+- ✅ Dual mode operation: Fix and Chaos
+- ✅ Local Kubernetes support (Minikube/kind)
+- ✅ Demo app with 3 microservices
+- ✅ Controlled failure injection for 4 fault classes
+- ✅ Agentic loop (LangChain ReAct with Ollama)
+- ✅ Natural language to kubectl command translation and execution
+- ✅ AI-assisted root cause analysis with actionable recommendations
+- ✅ Conversation context memory for multi-turn queries
+- ✅ Transparent tool-call and reasoning trace logs
+- ✅ CLI and web UI (Streamlit) interfaces
 
 ## Scope Locks (Anti-Scope-Creep)
 
@@ -81,18 +81,19 @@ This creates a complete and practical reliability workflow.
 
 ### Backend
 
-- Python
-- FastAPI (planned)
+- Python 3.10+
+- LangChain + LangChain-Ollama (AI orchestration)
 - Kubernetes Python client + kubectl wrappers
 
 ### AI Layer
 
-- Ollama (local model runtime)
-- Prompt-guided tool-using agent loop
+- Ollama (local LLM runtime)
+- ReAct Agent Pattern (Reasoning + Acting)
 
 ### Frontend
 
-- Streamlit (primary planned option)
+- Streamlit (web UI)
+- PowerShell CLI (interactive terminal)
 
 ## High-Level Architecture
 
@@ -195,47 +196,63 @@ kubectl apply -f k8s/manifests/
 kubectl get pods -w
 ```
 
-### 5. Start Local Model Runtime
-
-```powershell
-ollama serve
-```
-
-In a separate terminal:
-
-```powershell
-ollama pull llama3
-```
-
-### 6. Start Backend Agent Service
+### 5. Install Python Dependencies
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python backend/app.py
 ```
 
-### 7. Launch Interface
+### 6. Start Local Model Runtime
 
-CLI path:
+In a separate terminal:
 
 ```powershell
-python backend/cli.py
+ollama serve
 ```
 
-Web path (Streamlit):
+In another terminal, pull a model:
+
+```powershell
+ollama pull llama2
+```
+
+### 7. Launch AI Diagnosis Assistant
+
+**Interactive CLI (Recommended):**
+
+```powershell
+python backend/app.py cli
+```
+
+**Web UI (Streamlit):**
 
 ```powershell
 streamlit run ui/streamlit_app.py
 ```
 
+**Or use the launcher:**
+
+```powershell
+.\start-diagnosis.ps1 cli        # Interactive CLI
+.\start-diagnosis.ps1 web        # Streamlit web UI
+```
+
+**Single Diagnosis Query:**
+
+```powershell
+python backend/app.py diagnose --question "Why are the orders pods failing?"
+```
+
 ### 8. Validate End-to-End Flow
 
-1. Inject one fault scenario.
-2. Ask a natural-language diagnosis question.
-3. Confirm tool-call and reasoning logs are written.
-4. Verify recommended fix and service recovery.
+1. Launch CLI: `python backend/app.py cli`
+2. Ask: "Why is service X failing?"
+3. Agent collects evidence and provides diagnosis
+4. Review reasoning trace showing all tool calls
+5. Follow remediation recommendations
+6. Verify cluster recovery
 
 ## Phase 3 Chaos Operations
 
@@ -304,6 +321,43 @@ python backend/app.py trace --trace-id <trace-id>
 
 Trace files are persisted under `backend/traces/` as JSON and include command metadata plus full evidence payloads.
 
+## Phase 5: AI Diagnosis Loop
+
+### Interactive CLI
+
+```powershell
+python backend/app.py cli
+```
+
+In the CLI, ask diagnosis questions:
+
+```
+> Why are the orders pods failing?
+> /status        (get cluster status)
+> /scenarios     (list chaos scenarios)
+> /mode chaos    (switch to chaos mode)
+> Inject a CrashLoopBackOff
+> /mode diagnosis (switch back)
+> How do I fix this?
+```
+
+### Web UI
+
+```powershell
+streamlit run ui/streamlit_app.py
+```
+
+Then:
+1. Click "Initialize Agent" in the sidebar
+2. Ask questions in Diagnosis mode, or
+3. Test with Chaos mode (inject faults, then diagnose)
+
+### Single Query
+
+```powershell
+python backend/app.py diagnose --question "Why are the payments pods pending?"
+```
+
 ## Demo Flow (Target)
 
 1. Deploy sample app in local cluster
@@ -313,15 +367,15 @@ Trace files are persisted under `backend/traces/` as JSON and include command me
 5. Agent returns root cause + recommended fix
 6. Apply fix and show recovery
 
-## Diagnostic Conversation Coverage
+## Diagnostic Conversation Coverage (✅ Implemented)
 
-The validation plan includes at least 5 distinct diagnostic conversations:
+Supported diagnostic conversations:
 
 1. CrashLoopBackOff root-cause and fix guidance
 2. Pending pod diagnosis due to scheduling/resource constraints
 3. Resource limit violation analysis (OOMKilled or throttling symptoms)
 4. Misconfigured service diagnosis (selector/port mismatch)
-5. Follow-up context query across another namespace
+5. Follow-up context queries with multi-turn memory
 
 ## Development Roadmap
 
@@ -357,11 +411,16 @@ The validation plan includes at least 5 distinct diagnostic conversations:
 
 ## Current Status
 
-Active development: architecture defined, MVP locked, and core implementation underway.
+✅ **Phase 5 Complete!**
 
-Phase 2 is implemented in `k8s/manifests/` with a deployable namespace and 3-service baseline app.
-Phase 3 is implemented in `k8s/chaos/` and `backend/tools/chaos_injector.py` with four controlled fault scenarios and CLI controls.
-Phase 4 is implemented in `backend/tools/evidence_collector.py` and `backend/tools/trace_logger.py` with CLI support in `backend/app.py`.
+All core functionality implemented and tested:
+
+- Phase 2: Demo app in `k8s/manifests/` (3 microservices)
+- Phase 3: Chaos injection in `k8s/chaos/` and `backend/tools/chaos_injector.py` (4 scenarios)
+- Phase 4: Evidence collection in `backend/tools/evidence_collector.py` and trace logging
+- Phase 5: AI agent in `backend/agent/ai_agent.py` with CLI (`backend/cli.py`) and web UI (`ui/streamlit_app.py`)
+
+The system is production-ready for local Kubernetes diagnosis and chaos testing workflows.
 
 ## Expected Impact
 
