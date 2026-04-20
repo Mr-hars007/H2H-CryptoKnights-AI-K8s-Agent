@@ -3,14 +3,25 @@
 from __future__ import annotations
 
 from typing import Dict, List, Optional
-from ..tools import (
-    collect_evidence_snapshot as collect_evidence,
-    get_cluster_snapshot as get_cluster_status,
-    inject_fault,
-    revert_fault,
-    list_scenarios,
-    monitor_cluster_health,
-)
+
+try:
+    from ..tools import (
+        collect_evidence_snapshot as collect_evidence,
+        get_cluster_snapshot as get_cluster_status,
+        inject_fault,
+        revert_fault,
+        list_scenarios,
+        monitor_cluster_health,
+    )
+except ImportError:
+    from tools import (  # type: ignore[no-redef]
+        collect_evidence_snapshot as collect_evidence,
+        get_cluster_snapshot as get_cluster_status,
+        inject_fault,
+        revert_fault,
+        list_scenarios,
+        monitor_cluster_health,
+    )
 
 
 def tool_collect_evidence_snapshot(

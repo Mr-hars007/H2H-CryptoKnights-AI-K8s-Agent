@@ -1,4 +1,4 @@
-"""Interactive CLI for multi-turn AI diagnosis conversations."""
+"""Interactive CLI for multi-turn AI diagnosis conversations with enhanced UX."""
 
 from __future__ import annotations
 
@@ -6,7 +6,16 @@ import argparse
 import os
 import sys
 import json
+import textwrap
 from pathlib import Path
+from typing import Optional, Callable
+
+try:
+    from colorama import Fore, Back, Style, init
+    init(autoreset=True)
+    HAS_COLORAMA = True
+except ImportError:
+    HAS_COLORAMA = False
 
 from agent import (
     create_agent,
@@ -20,129 +29,283 @@ from tools import write_trace
 DEFAULT_NAMESPACE = os.getenv("AI_K8S_NAMESPACE", "ai-ops")
 
 
+class Colors:
+    """Color constants for terminal output."""
+    if HAS_COLORAMA:
+        SUCCESS = Fore.GREEN
+        ERROR = Fore.RED
+        WARNING = Fore.YELLOW
+        INFO = Fore.CYAN
+        HEADER = Fore.MAGENTA
+        RESET = Style.RESET_ALL
+        BOLD = Style.BRIGHT
+    else:
+        SUCCESS = ""
+        ERROR = ""
+        WARNING = ""
+        INFO = ""
+        HEADER = ""
+        RESET = ""
+        BOLD = ""
+
+
 def print_header() -> None:
-    """Print welcome header."""
-    print("\n" + "=" * 70)
-    print("H2H CryptoKnights: AI Kubernetes Diagnosis Assistant")
-    print("Phase 5: AI Diagnosis Loop - Interactive Mode")
-    print("=" * 70)
-    print("\nAvailable commands:")
-    print("  Type your question to diagnose cluster issues")
-    print("  'mode chaos'    - Switch to Chaos Mode (for fault injection)")
-    print("  'mode diagnosis' - Switch to Diagnosis Mode")
-    print("  'status'        - Get current cluster status")
-    print("  'scenarios'     - List available chaos scenarios")
-    print("  'save'          - Save conversation to file")
-    print("  'load <file>'   - Load previous conversation")
-    print("  'clear'         - Clear conversation history")
-    print("  'history'       - Show conversation history")
-    print("  'exit'          - Exit the program")
-    print("\n" + "-" * 70 + "\n")
+    """Print welcome header with enhanced formatting."""
+    print("\n" + "=" * 80)
+    print(f"{Colors.HEADER}{Colors.BOLD}H2H CryptoKnights: AI Kubernetes Diagnosis Assistant{Colors.RESET}")
+    print(f"{Colors.HEADER}Phase 6: Product Experience - Interactive Mode{Colors.RESET}")
+    print("=" * 80)
+    
+    print(f"\n{Colors.BOLD}Available Commands:{Colors.RESET}")
+    print(f"  {Colors.INFO}Your Question{Colors.RESET}")
+    print(f"    → Diagnose cluster issues (e.g., 'Why are orders pods failing?')")
+    print()
+    print(f"  {Colors.INFO}Mode Management:{Colors.RESET}")
+    print(f"    /mode diagnosis    - Switch to Diagnosis Mode (default)")
+    print(f"    /mode chaos        - Switch to Chaos Mode (for fault injection)")
+    print()
+    print(f"  {Colors.INFO}Cluster Information:{Colors.RESET}")
+    print(f"    /status           - Get current cluster status")
+    print(f"    /scenarios        - List available chaos scenarios")
+    print()
+    print(f"  {Colors.INFO}Conversation Management:{Colors.RESET}")
+    print(f"    /save             - Save current conversation to file")
+    print(f"    /load <file>      - Load a previous conversation")
+    print(f"    /history          - Show conversation history")
+    print(f"    /clear            - Clear conversation history")
+    print(f"    /settings         - Display current settings")
+    print()
+    print(f"  {Colors.INFO}Help & Exit:{Colors.RESET}")
+    print(f"    /help             - Show this help message")
+    print(f"    /exit             - Exit the program")
+    print("\n" + "-" * 80 + "\n")
+
+
+def print_section(title: str) -> None:
+    """Print a formatted section header."""
+    print(f"\n{Colors.BOLD}{Colors.INFO}{'=' * 80}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.HEADER}{title:^80}{Colors.RESET}")
+    print(f"{Colors.BOLD}{Colors.INFO}{'=' * 80}{Colors.RESET}\n")
+
+
+def print_success(message: str) -> None:
+    """Print a success message."""
+    print(f"{Colors.SUCCESS}✅ {message}{Colors.RESET}")
+
+
+def print_error(message: str) -> None:
+    """Print an error message."""
+    print(f"{Colors.ERROR}❌ {message}{Colors.RESET}")
+
+
+def print_warning(message: str) -> None:
+    """Print a warning message."""
+    print(f"{Colors.WARNING}⚠️  {message}{Colors.RESET}")
+
+
+def print_info(message: str) -> None:
+    """Print an info message."""
+    print(f"{Colors.INFO}ℹ️  {message}{Colors.RESET}")
+
+
+def wrap_text(text: str, width: int = 75) -> str:
+    """Wrap text to specified width."""
+    lines = text.split('\n')
+    wrapped = []
+    for line in lines:
+        if line.strip():
+            wrapped.extend(textwrap.wrap(line, width=width))
+        else:
+            wrapped.append('')
+    return '\n'.join(wrapped)
 
 
 def print_diagnosis(result: dict) -> None:
-    """Pretty-print diagnosis result."""
+    """Pretty-print diagnosis result with enhanced formatting."""
     if not result["ok"]:
-        print(f"\n❌ Error: {result.get('error', 'Unknown error')}\n")
+        print_error(result.get('error', 'Unknown error'))
         return
     
+    print_section("DIAGNOSIS RESULT")
+    
     diagnosis = result.get("diagnosis", "")
-    print(f"\n🔍 Diagnosis:\n{diagnosis}\n")
+    if diagnosis:
+        print(wrap_text(diagnosis))
     
     # Print trace events if available
     trace = result.get("trace", [])
     if trace:
-        print("\n📋 Reasoning Trace:")
-        for event in trace[-5:]:  # Show last 5 events
+        print_section("REASONING TRACE")
+        
+        tool_calls = []
+        actions = []
+        
+        for event in trace:
             event_type = event.get("event", "unknown")
             timestamp = event.get("timestamp", "?")[:19]
+            
             if event_type == "tool_start":
                 tool = event.get("tool", "?")
-                print(f"  [{timestamp}] 🔧 Calling tool: {tool}")
+                tool_calls.append((timestamp, tool))
             elif event_type == "agent_action":
                 action = event.get("action", "?")
-                print(f"  [{timestamp}] ✓ Agent action: {action}")
-            elif event_type == "agent_finish":
-                print(f"  [{timestamp}] ✅ Diagnosis complete")
-        print()
+                actions.append((timestamp, action))
+        
+        if tool_calls:
+            print(f"{Colors.INFO}Tool Invocations:{Colors.RESET}")
+            for timestamp, tool in tool_calls:
+                print(f"  • [{timestamp}] {Colors.BOLD}{tool}{Colors.RESET}")
+        
+        if actions:
+            print(f"\n{Colors.INFO}Agent Actions:{Colors.RESET}")
+            for timestamp, action in actions:
+                print(f"  • [{timestamp}] {action[:60]}...")
+        
+        print(f"\n{Colors.SUCCESS}✓ Diagnosis reasoning complete{Colors.RESET}")
+    
+    print()
 
 
-def handle_special_command(cmd: str, agent, memory: ConversationMemory, state: ConversationState):
-    """Handle special CLI commands."""
+def validate_command(cmd: str) -> tuple[bool, Optional[str]]:
+    """Validate command syntax and return (is_valid, error_message)."""
     cmd = cmd.strip().lower()
     
+    # Command validation rules
+    if cmd.startswith("load ") and len(cmd) <= 5:
+        return False, "load: Please specify a file path"
+    
+    if cmd.startswith("mode "):
+        mode = cmd[5:].strip().lower()
+        if mode not in ["diagnosis", "chaos"]:
+            return False, f"mode: Unknown mode '{mode}'. Use 'diagnosis' or 'chaos'"
+    
+    valid_commands = ["exit", "status", "scenarios", "save", "clear", "history", "help", "settings"]
+    if any(cmd == c for c in valid_commands) or cmd.startswith(("load ", "mode ")):
+        return True, None
+    
+    return True, None
+
+
+
+def handle_special_command(cmd: str, agent, memory: ConversationMemory, state: ConversationState) -> bool:
+    """Handle special CLI commands with enhanced feedback."""
+    cmd = cmd.strip().lower()
+    
+    # Validate command
+    is_valid, error_msg = validate_command(cmd)
+    if not is_valid:
+        print_error(error_msg)
+        return True
+    
     if cmd == "exit":
-        print("Saving conversation before exit...")
+        print_info("Saving conversation before exit...")
         filepath = memory.save()
-        print(f"✅ Conversation saved to: {filepath}")
+        print_success(f"Conversation saved to: {filepath}")
+        print("\n👋 Goodbye!\n")
         raise SystemExit(0)
     
+    elif cmd == "help":
+        print_header()
+        return True
+    
     elif cmd == "status":
-        print("\n📊 Current Cluster Status:")
+        print_section("CLUSTER STATUS")
         from tools import get_cluster_snapshot
-        result = get_cluster_snapshot(namespace=state.namespace)
-        for step in result.get("steps", []):
-            stdout = step.get("stdout", "")
-            if stdout:
-                print(stdout[:500])
-        print()
+        try:
+            result = get_cluster_snapshot(namespace=state.namespace)
+            for step in result.get("steps", []):
+                stdout = step.get("stdout", "")
+                if stdout:
+                    print(stdout[:700])
+            print()
+        except Exception as e:
+            print_error(f"Failed to get cluster status: {e}")
+        return True
     
     elif cmd == "scenarios":
-        print("\n🎯 Available Chaos Scenarios:")
+        print_section("CHAOS SCENARIOS")
         from tools import list_scenarios
-        scenarios = list_scenarios()
-        for key, desc in scenarios.items():
-            print(f"  • {key}: {desc}")
-        print()
+        try:
+            scenarios = list_scenarios()
+            for key, desc in scenarios.items():
+                print(f"  {Colors.BOLD}{key:30}{Colors.RESET} {desc}")
+            print()
+        except Exception as e:
+            print_error(f"Failed to list scenarios: {e}")
+        return True
     
     elif cmd == "save":
         filepath = memory.save()
-        print(f"✅ Conversation saved to: {filepath}\n")
+        print_success(f"Conversation saved to: {filepath}")
+        print()
+        return True
     
     elif cmd.startswith("load "):
         filepath = cmd[5:].strip()
         try:
             memory = ConversationMemory.load(Path(filepath))
-            print(f"✅ Loaded conversation from: {filepath}")
-            print(f"   Previous turns: {len(memory.messages)}")
+            print_success(f"Loaded conversation from: {filepath}")
+            print_info(f"Previous turns: {len(memory.messages)}")
             print()
+        except FileNotFoundError:
+            print_error(f"File not found: {filepath}")
         except Exception as e:
-            print(f"❌ Failed to load conversation: {e}\n")
+            print_error(f"Failed to load conversation: {e}")
+        return True
     
     elif cmd == "clear":
         memory.messages.clear()
         memory.context = {"namespace": state.namespace, "focus_services": [], "known_issues": []}
-        print("✅ Conversation history cleared\n")
+        print_success("Conversation history cleared")
+        print()
+        return True
     
     elif cmd == "history":
         if not memory.messages:
-            print("No conversation history.\n")
+            print_info("No conversation history yet.")
         else:
-            print("\n📝 Conversation History:")
+            print_section("CONVERSATION HISTORY")
             for i, msg in enumerate(memory.messages, 1):
                 role = msg["role"].upper()
-                content = msg["content"][:100]
-                print(f"{i}. {role}: {content}...")
-            print()
+                content = msg["content"][:80]
+                prefix = "👤" if role == "USER" else "🤖"
+                print(f"{i}. {prefix} {Colors.BOLD}{role}{Colors.RESET}: {content}...")
+        print()
+        return True
+    
+    elif cmd == "settings":
+        print_section("CURRENT SETTINGS")
+        print(f"  {Colors.BOLD}Namespace:{Colors.RESET}     {state.namespace}")
+        print(f"  {Colors.BOLD}Mode:{Colors.RESET}          {state.mode.upper()}")
+        print(f"  {Colors.BOLD}Conversation ID:{Colors.RESET} {memory.conversation_id[:8]}...")
+        print(f"  {Colors.BOLD}Message Count:{Colors.RESET}  {len(memory.messages)}")
+        print()
+        return True
     
     elif cmd.startswith("mode "):
         new_mode = cmd[5:].strip().lower()
         if new_mode in ["diagnosis", "chaos"]:
             state.mode = new_mode
-            print(f"✅ Switched to {new_mode.upper()} Mode\n")
+            print_success(f"Switched to {new_mode.upper()} Mode")
+            print()
         else:
-            print(f"❌ Unknown mode: {new_mode}. Use 'diagnosis' or 'chaos'\n")
+            print_error(f"Unknown mode: {new_mode}. Use 'diagnosis' or 'chaos'")
+        return True
     
-    else:
-        return False
-    
-    return True
+    return False
 
 
 def main() -> None:
-    """Main interactive CLI loop."""
+    """Main interactive CLI loop with enhanced UX."""
     parser = argparse.ArgumentParser(
         description="Interactive Kubernetes diagnosis assistant",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""
+            Examples:
+              %(prog)s                          # Use default namespace (ai-ops)
+              %(prog)s --namespace production   # Use different namespace
+              %(prog)s --load conversation.json # Load previous conversation
+        """),
     )
     parser.add_argument(
         "--namespace",
@@ -168,13 +331,17 @@ def main() -> None:
     print_header()
 
     # Initialize agent, memory, and state
-    print("🚀 Initializing AI diagnosis agent...")
+    print_info("Initializing AI diagnosis agent...")
     try:
         agent = create_agent(namespace=args.namespace)
-        print("✅ Agent initialized successfully\n")
+        print_success("Agent initialized successfully")
+        print_info(f"Namespace: {args.namespace}")
+        print_info(f"Model: {args.model}")
+        print()
     except Exception as e:
-        print(f"❌ Failed to initialize agent: {e}")
-        print("   Make sure Ollama is running at: http://localhost:11434")
+        print_error(f"Failed to initialize agent: {e}")
+        print_info("Make sure Ollama is running at: http://localhost:11434")
+        print_info("You can start it with: ollama serve")
         raise SystemExit(1)
 
     memory = ConversationMemory()
@@ -185,30 +352,37 @@ def main() -> None:
     if args.load:
         try:
             memory = ConversationMemory.load(Path(args.load))
-            print(f"✅ Loaded previous conversation with {len(memory.messages)} turns\n")
+            print_success(f"Loaded previous conversation with {len(memory.messages)} turns")
+            print()
         except Exception as e:
-            print(f"⚠️  Could not load conversation: {e}\n")
+            print_warning(f"Could not load conversation: {e}")
+            print()
 
     # Main conversation loop
+    turn_count = 0
     while True:
         try:
-            # Get user input
-            prompt = f"[{state.mode.upper()}] > "
+            # Get user input with mode indicator
+            prompt = f"{Colors.BOLD}[{state.mode.upper()}]{Colors.RESET} > "
             user_input = input(prompt).strip()
 
             if not user_input:
                 continue
 
-            # Handle special commands
+            # Check for commands (/ or -)
             if user_input.startswith("/") or user_input.startswith("-"):
-                cmd = user_input.lstrip("/ ").strip()
+                cmd = user_input.lstrip("/ -").strip()
                 if handle_special_command(cmd, agent, memory, state):
+                    continue
+                else:
+                    print_warning(f"Unknown command: {cmd}. Type '/help' for available commands.")
                     continue
 
             # Regular diagnosis query
+            turn_count += 1
             memory.add_user_message(user_input)
 
-            print("\n⏳ Analyzing cluster (this may take 30-60 seconds)...\n")
+            print(f"\n{Colors.INFO}⏳ Analyzing cluster (this may take 30-60 seconds)...{Colors.RESET}\n")
 
             # Run diagnosis with trace callback
             trace_callback = DiagnosisTraceCallback()
@@ -235,25 +409,34 @@ def main() -> None:
                     "namespace": args.namespace,
                     "conversation_id": memory.conversation_id,
                     "mode": state.mode,
+                    "turn": turn_count,
                 },
             )
 
             # Update context
             if "root cause" in result.get("diagnosis", "").lower():
                 state.root_cause_identified = True
+                print_success("Root cause identified in diagnosis")
+            
+            print_info(f"Turn {turn_count} complete. Type '/help' for commands or ask another question.")
+            print()
 
         except KeyboardInterrupt:
             print("\n\n👋 Saving conversation and exiting...")
             filepath = memory.save()
-            print(f"✅ Conversation saved to: {filepath}")
+            print_success(f"Conversation saved to: {filepath}")
+            print("\n")
             raise SystemExit(0)
         except EOFError:
             print("\n👋 Exiting...")
             filepath = memory.save()
-            print(f"✅ Conversation saved to: {filepath}")
+            print_success(f"Conversation saved to: {filepath}")
+            print("\n")
             raise SystemExit(0)
         except Exception as e:
-            print(f"\n❌ Error during diagnosis: {e}\n")
+            print_error(f"Error during diagnosis: {e}")
+            print_info("The conversation has been saved. Check logs for details.")
+            print()
 
 
 if __name__ == "__main__":

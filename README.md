@@ -57,7 +57,7 @@ This creates a complete and practical reliability workflow.
 - ✅ Local Kubernetes support (Minikube/kind)
 - ✅ Demo app with 3 microservices
 - ✅ Controlled failure injection for 4 fault classes
-- ✅ Agentic loop (LangChain ReAct with Ollama)
+- ✅ Agentic diagnosis loop (optional LangChain-backed mode, with fallback mode available)
 - ✅ Natural language to kubectl command translation and execution
 - ✅ AI-assisted root cause analysis with actionable recommendations
 - ✅ Conversation context memory for multi-turn queries
@@ -82,7 +82,7 @@ This creates a complete and practical reliability workflow.
 ### Backend
 
 - Python 3.10+
-- LangChain + LangChain-Ollama (AI orchestration)
+- Optional: LangChain + LangChain-Ollama for live model-backed diagnosis
 - Kubernetes Python client + kubectl wrappers
 
 ### AI Layer
@@ -380,38 +380,40 @@ Supported diagnostic conversations:
 ## Development Roadmap
 
 ### Phase 1: Foundation
-
-- Repository initialized
-- Architecture and MVP frozen
-- README baseline created
+- ✅ Repository initialized
+- ✅ Architecture and MVP frozen
+- ✅ README baseline created
 
 ### Phase 2: Cluster Baseline
-
-- Local cluster + 3-service app deployed
+- ✅ Local cluster + 3-service app deployed
 
 ### Phase 3: Controlled Fault Injection
-
-- Chaos injection scenarios implemented
+- ✅ Chaos injection scenarios implemented
 
 ### Phase 4: Observability and Evidence Collection
-
-- Evidence collection and trace logging added
+- ✅ Evidence collection and trace logging added
 
 ### Phase 5: AI Diagnosis Loop
+- ✅ AI diagnosis loop integrated end-to-end
 
-- AI diagnosis loop integrated end-to-end
+### Phase 6: Product Experience ✅
+- ✅ CLI polished with colors, commands, and validation
+- ✅ Streamlit UI redesigned with tabs and templates
+- ✅ Error handling and user guidance improved
+- ✅ Professional visual design and styling
+- ✅ Comprehensive session management
+- ✅ Phase 6 documentation complete
 
-### Phase 6: Product Experience
-
-- Dual-mode UX polished (CLI/UI)
-
-### Phase 7: Stabilization and Release Readiness
-
-- Stabilization, documentation, demo prep
+### Phase 7: Stabilization and Release Readiness (Next)
+- Production hardening
+- Integration testing
+- Performance optimization
+- Documentation finalization
+- Demo script refinement
 
 ## Current Status
 
-✅ **Phase 5 Complete!**
+✅ **Phase 6 Complete! Product Experience Polished**
 
 All core functionality implemented and tested:
 
@@ -419,8 +421,14 @@ All core functionality implemented and tested:
 - Phase 3: Chaos injection in `k8s/chaos/` and `backend/tools/chaos_injector.py` (4 scenarios)
 - Phase 4: Evidence collection in `backend/tools/evidence_collector.py` and trace logging
 - Phase 5: AI agent in `backend/agent/ai_agent.py` with CLI (`backend/cli.py`) and web UI (`ui/streamlit_app.py`)
+- Phase 6: UX Polish - Enhanced CLI with colors & validation, Redesigned Streamlit UI with tabs & templates
 
-The system is production-ready for local Kubernetes diagnosis and chaos testing workflows.
+The system is production-ready with professional UX for local Kubernetes diagnosis and chaos testing workflows.
+
+### Phase 6 Enhancements
+- **CLI:** Colored output, command validation, improved help system, better error messages
+- **Streamlit:** Tab-based organization, diagnostic templates, enhanced sidebar, better layout
+- **Both:** Session management, progress indicators, clearer user guidance, professional styling
 
 ## Expected Impact
 

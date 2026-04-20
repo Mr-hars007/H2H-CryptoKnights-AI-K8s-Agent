@@ -7,10 +7,23 @@ import os
 from typing import Any, Dict, Optional, List
 from datetime import datetime, timezone
 
-from langchain.agents import Tool, AgentExecutor, create_react_agent
-from langchain.prompts import PromptTemplate
-from langchain_ollama import ChatOllama
-from langchain.callbacks import BaseCallbackHandler
+try:
+    from langchain.agents import Tool, AgentExecutor, create_react_agent
+    from langchain.prompts import PromptTemplate
+    from langchain_ollama import ChatOllama
+    from langchain.callbacks import BaseCallbackHandler
+    HAS_LANGCHAIN = True
+except ImportError:
+    Tool = Any
+    AgentExecutor = None
+    create_react_agent = None
+    PromptTemplate = None
+    ChatOllama = None
+
+    class BaseCallbackHandler:  # type: ignore[no-redef]
+        pass
+
+    HAS_LANGCHAIN = False
 
 from .tools import (
     tool_collect_evidence_snapshot,
@@ -82,21 +95,25 @@ class KubernetesAIDiagnosisAgent:
         self.namespace = namespace
         self.model_name = model
         self.base_url = base_url
-
-        # Initialize LLM
-        self.llm = ChatOllama(
-            model=model,
-            base_url=base_url,
-            temperature=0.2,
-        )
-
-        # Define tools for the agent
-        self.tools = self._create_tools()
-
-        # Initialize agent
+        self.llm = None
+        self.tools: List[Tool] = []
         self.agent = None
         self.executor = None
-        self._initialize_agent()
+        self.fallback_mode = not HAS_LANGCHAIN
+
+        if HAS_LANGCHAIN:
+            # Initialize LLM
+            self.llm = ChatOllama(
+                model=model,
+                base_url=base_url,
+                temperature=0.2,
+            )
+
+            # Define tools for the agent
+            self.tools = self._create_tools()
+
+            # Initialize agent
+            self._initialize_agent()
 
     def _create_tools(self) -> List[Tool]:
         """Create tool definitions for the agent."""
@@ -155,6 +172,9 @@ class KubernetesAIDiagnosisAgent:
 
     def _initialize_agent(self) -> None:
         """Initialize the ReAct agent with tools and prompt."""
+        if not HAS_LANGCHAIN:
+            return
+
         prompt_template = """You are an expert Kubernetes troubleshooting assistant. 
 Your job is to:
 1. Gather evidence about cluster failures using available tools
@@ -287,6 +307,9 @@ Question: {input}
         Returns:
             Dictionary with diagnosis result and reasoning trace
         """
+        if not HAS_LANGCHAIN:
+            return self._fallback_diagnose(question, trace_callback=trace_callback)
+
         callbacks = [trace_callback] if trace_callback else []
 
         try:
@@ -308,6 +331,127 @@ Question: {input}
                 "error": str(e),
                 "trace": trace_callback.trace_events if trace_callback else [],
             }
+
+    def _fallback_diagnose(
+        self,
+        question: str,
+        trace_callback: Optional[DiagnosisTraceCallback] = None,
+    ) -> Dict[str, Any]:
+        """Provide a deterministic diagnosis when LangChain is unavailable."""
+        trace_events: List[Dict[str, Any]] = []
+
+        def record(event: Dict[str, Any]) -> None:
+            trace_events.append(event)
+            if trace_callback is not None:
+                trace_callback.trace_events.append(event)
+
+        record(
+            {
+                "event": "agent_action",
+                "action": "fallback_diagnosis",
+                "input": question,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+        keyword = question.lower()
+        symptom = "general failure"
+        diagnosis = "The cluster appears healthy overall, but the question did not match a specific fault signature."
+        remediation = "Review pod status, logs, and recent events for the affected service."
+
+        try:
+            status_snapshot = tool_get_cluster_status(namespace=self.namespace)
+            record(
+                {
+                    "event": "tool_start",
+                    "tool": "get_cluster_status",
+                    "input": self.namespace,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            record(
+                {
+                    "event": "tool_end",
+                    "output": json.dumps(status_snapshot, default=str)[:500],
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+        except Exception as exc:
+            status_snapshot = {"ok": False, "error": str(exc)}
+
+        try:
+            evidence_snapshot = tool_collect_evidence_snapshot(namespace=self.namespace)
+            record(
+                {
+                    "event": "tool_start",
+                    "tool": "collect_evidence_snapshot",
+                    "input": self.namespace,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            record(
+                {
+                    "event": "tool_end",
+                    "output": json.dumps(evidence_snapshot, default=str)[:500],
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+        except Exception as exc:
+            evidence_snapshot = {"ok": False, "error": str(exc)}
+
+        if any(token in keyword for token in ["crashloop", "crash", "restart"]):
+            symptom = "CrashLoopBackOff / repeated restarts"
+            diagnosis = "The workload is repeatedly crashing after start-up, which usually points to a bad config, missing dependency, or failing application startup path."
+            remediation = "Inspect container logs, confirm environment variables and secrets, and verify the startup command or image version."
+        elif "pending" in keyword:
+            symptom = "Pending pods"
+            diagnosis = "The workload is stuck Pending, which usually means the scheduler cannot place the pod because of resource, node, affinity, or quota constraints."
+            remediation = "Check node capacity, resource requests/limits, taints, tolerations, and any namespace quota restrictions."
+        elif any(token in keyword for token in ["memory", "oom", "cpu", "resource"]):
+            symptom = "Resource pressure"
+            diagnosis = "The workload is likely hitting resource pressure, such as memory exhaustion, CPU throttling, or insufficient pod requests."
+            remediation = "Review resource requests and limits, look for OOMKilled events, and compare usage with node capacity."
+        elif any(token in keyword for token in ["network", "connect", "service", "dns"]):
+            symptom = "Service connectivity"
+            diagnosis = "The issue likely involves service-to-service connectivity, DNS resolution, or an incorrect service selector/port mapping."
+            remediation = "Validate service selectors, endpoints, DNS resolution, and network policy rules."
+        elif any(service in keyword for service in ["orders", "payments", "gateway"]):
+            symptom = "Application service failure"
+            diagnosis = (
+                "A core service in the demo stack appears unhealthy or unavailable. "
+                "For this repo, that usually means the target deployment is crash-looping, pending, "
+                "or failing health checks."
+            )
+            remediation = (
+                "Check the service's pod status, recent events, and logs; then compare the deployment "
+                "specification with the expected demo manifests."
+            )
+
+        result_text = (
+            f"DIAGNOSIS: {diagnosis}\n"
+            f"SYMPTOMS: {symptom}\n"
+            f"IMPACT: The affected workload may be unavailable or degraded in namespace {self.namespace}.\n"
+            f"REMEDIATION: {remediation}\n"
+            f"VALIDATION: Re-run status checks and confirm the workload reaches Ready state without new events.\n\n"
+            f"NOTE: LangChain is not installed in this environment, so this is the built-in fallback diagnosis mode."
+        )
+
+        record(
+            {
+                "event": "agent_finish",
+                "output": result_text[:300],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+        return {
+            "ok": True,
+            "question": question,
+            "diagnosis": result_text,
+            "status_snapshot": status_snapshot,
+            "evidence_snapshot": evidence_snapshot,
+            "trace": trace_events,
+        }
 
 
 def create_agent(namespace: str = DEFAULT_NAMESPACE) -> KubernetesAIDiagnosisAgent:

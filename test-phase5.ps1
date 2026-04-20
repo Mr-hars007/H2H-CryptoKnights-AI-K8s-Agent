@@ -89,7 +89,7 @@ Test-File "start-diagnosis.ps1" "Launch Script"
 
 # Test 2: Dependencies
 Write-Color "`nTEST 2: Python Dependencies" -Color Yellow
-$deps = @('langchain', 'langchain-core', 'langchain-ollama', 'ollama', 'pydantic', 'streamlit')
+$deps = @('streamlit', 'requests', 'python_dotenv', 'colorama')
 foreach ($dep in $deps) {
     try {
         $output = python -c "import ${dep.replace('-', '_')}" 2>&1
@@ -99,6 +99,10 @@ foreach ($dep in $deps) {
         Test-Condition "Package installed: $dep" $false "Exception: $_"
     }
 }
+
+Write-Color "`nOPTIONAL: LangChain/Ollama runtime" -Color Yellow
+Write-Color "Install later only if you want live model-backed diagnosis:" -Color Gray
+Write-Color "  pip install langchain langchain-core langchain-ollama ollama" -Color Gray
 
 # Test 3: Module Imports
 Write-Color "`nTEST 3: Agent Module Imports" -Color Yellow

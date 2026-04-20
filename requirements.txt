@@ -1,9 +1,5 @@
-langchain==0.1.20
-langchain-core==0.1.48
-langchain-ollama==0.1.1
-ollama==0.1.48
-pydantic==2.7.1
-pydantic-settings==2.2.1
 streamlit==1.31.1
 requests==2.31.0
 python-dotenv==1.0.0
+colorama==0.4.6
+# Optional later: install LangChain + Ollama packages when you want live model-backed diagnosis.
