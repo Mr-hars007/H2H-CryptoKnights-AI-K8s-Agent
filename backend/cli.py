@@ -27,6 +27,8 @@ from tools import write_trace
 
 
 DEFAULT_NAMESPACE = os.getenv("AI_K8S_NAMESPACE", "ai-ops")
+DEFAULT_OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama2")
+DEFAULT_OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 
 class Colors:
@@ -66,6 +68,8 @@ def print_header() -> None:
     print()
     print(f"  {Colors.INFO}Cluster Information:{Colors.RESET}")
     print(f"    /status           - Get current cluster status")
+    print(f"    /discover         - Discover live services in namespace")
+    print(f"    /traffic          - Generate real traffic to live services")
     print(f"    /scenarios        - List available chaos scenarios")
     print()
     print(f"  {Colors.INFO}Conversation Management:{Colors.RESET}")
@@ -179,7 +183,18 @@ def validate_command(cmd: str) -> tuple[bool, Optional[str]]:
         if mode not in ["diagnosis", "chaos"]:
             return False, f"mode: Unknown mode '{mode}'. Use 'diagnosis' or 'chaos'"
     
-    valid_commands = ["exit", "status", "scenarios", "save", "clear", "history", "help", "settings"]
+    valid_commands = [
+        "exit",
+        "status",
+        "discover",
+        "traffic",
+        "scenarios",
+        "save",
+        "clear",
+        "history",
+        "help",
+        "settings",
+    ]
     if any(cmd == c for c in valid_commands) or cmd.startswith(("load ", "mode ")):
         return True, None
     
@@ -232,6 +247,43 @@ def handle_special_command(cmd: str, agent, memory: ConversationMemory, state: C
             print()
         except Exception as e:
             print_error(f"Failed to list scenarios: {e}")
+        return True
+
+    elif cmd == "discover":
+        print_section("LIVE SERVICE DISCOVERY")
+        from tools import discover_services
+        try:
+            result = discover_services(namespace=state.namespace, require_selector=True)
+            if result.get("ok"):
+                services = result.get("services", [])
+                if services:
+                    for name in services:
+                        print(f"  • {name}")
+                else:
+                    print_warning("No selector-backed services discovered in this namespace.")
+            else:
+                print_error(result.get("error", "Failed to discover services"))
+            print()
+        except Exception as e:
+            print_error(f"Failed to discover services: {e}")
+        return True
+
+    elif cmd == "traffic":
+        print_section("LIVE TRAFFIC EMULATOR")
+        from tools import run_traffic_emulator
+        try:
+            print_info("Generating in-cluster traffic to live service endpoints...")
+            result = run_traffic_emulator(namespace=state.namespace)
+            if result.get("ok"):
+                summary = result.get("traffic_summary", {})
+                print_success("Traffic generation completed successfully")
+                print_info(f"Requests observed: {summary.get('records', 0)}")
+                print_info(f"Success rate: {summary.get('success_rate', 0.0) * 100:.1f}%")
+            else:
+                print_error(result.get("error", "Traffic generation failed"))
+            print()
+        except Exception as e:
+            print_error(f"Failed to run traffic emulator: {e}")
         return True
     
     elif cmd == "save":
@@ -295,7 +347,7 @@ def handle_special_command(cmd: str, agent, memory: ConversationMemory, state: C
     return False
 
 
-def main() -> None:
+def main(argv: Optional[list[str]] = None) -> None:
     """Main interactive CLI loop with enhanced UX."""
     parser = argparse.ArgumentParser(
         description="Interactive Kubernetes diagnosis assistant",
@@ -314,29 +366,34 @@ def main() -> None:
     )
     parser.add_argument(
         "--model",
-        default="llama2",
-        help="Ollama model to use (default: llama2)",
+        default=DEFAULT_OLLAMA_MODEL,
+        help=f"Ollama model to use (default: {DEFAULT_OLLAMA_MODEL})",
     )
     parser.add_argument(
         "--base-url",
-        default="http://localhost:11434",
-        help="Ollama base URL (default: http://localhost:11434)",
+        default=DEFAULT_OLLAMA_BASE_URL,
+        help=f"Ollama base URL (default: {DEFAULT_OLLAMA_BASE_URL})",
     )
     parser.add_argument(
         "--load",
         help="Load conversation from file",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     print_header()
 
     # Initialize agent, memory, and state
     print_info("Initializing AI diagnosis agent...")
     try:
-        agent = create_agent(namespace=args.namespace)
+        agent = create_agent(
+            namespace=args.namespace,
+            model=args.model,
+            base_url=args.base_url,
+        )
         print_success("Agent initialized successfully")
         print_info(f"Namespace: {args.namespace}")
         print_info(f"Model: {args.model}")
+        print_info(f"Ollama URL: {args.base_url}")
         print()
     except Exception as e:
         print_error(f"Failed to initialize agent: {e}")

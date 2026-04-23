@@ -9,12 +9,14 @@ from typing import Any, Dict
 
 from tools import (
     collect_evidence_snapshot,
+    discover_services,
     get_cluster_snapshot,
     inject_fault,
     list_scenarios,
     list_traces,
     monitor_cluster_health,
     read_trace,
+    run_traffic_emulator,
     revert_fault,
     write_trace,
 )
@@ -26,6 +28,11 @@ DEFAULT_MONITOR_SAMPLES = int(os.getenv("AI_MONITOR_SAMPLES", "3"))
 DEFAULT_MONITOR_INTERVAL_SECONDS = int(os.getenv("AI_MONITOR_INTERVAL_SECONDS", "10"))
 DEFAULT_LOG_TAIL_LINES = int(os.getenv("AI_LOG_TAIL_LINES", "120"))
 DEFAULT_TRACE_LIST_LIMIT = int(os.getenv("AI_TRACE_LIST_LIMIT", "20"))
+DEFAULT_TRAFFIC_REQUESTS = int(os.getenv("AI_TRAFFIC_REQUESTS_PER_SERVICE", "20"))
+DEFAULT_TRAFFIC_INTERVAL = int(os.getenv("AI_TRAFFIC_INTERVAL_SECONDS", "1"))
+DEFAULT_TRAFFIC_TIMEOUT = int(os.getenv("AI_TRAFFIC_REQUEST_TIMEOUT_SECONDS", "2"))
+DEFAULT_OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama2")
+DEFAULT_OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 
 def _parse_services_arg(raw_value: str | None) -> list[str] | None:
@@ -45,7 +52,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "command",
-        choices=["list", "inject", "revert", "status", "snapshot", "monitor", "traces", "trace", "diagnose", "cli"],
+        choices=[
+            "list",
+            "inject",
+            "revert",
+            "status",
+            "discover",
+            "traffic",
+            "snapshot",
+            "monitor",
+            "traces",
+            "trace",
+            "diagnose",
+            "cli",
+        ],
         help="Operation to run",
     )
     parser.add_argument(
@@ -104,6 +124,34 @@ def build_parser() -> argparse.ArgumentParser:
         "--question",
         help="Natural language question for diagnose command",
     )
+    parser.add_argument(
+        "--requests-per-service",
+        type=int,
+        default=DEFAULT_TRAFFIC_REQUESTS,
+        help=f"Traffic requests per service for traffic command (default: {DEFAULT_TRAFFIC_REQUESTS})",
+    )
+    parser.add_argument(
+        "--traffic-interval",
+        type=int,
+        default=DEFAULT_TRAFFIC_INTERVAL,
+        help=f"Seconds between traffic rounds (default: {DEFAULT_TRAFFIC_INTERVAL})",
+    )
+    parser.add_argument(
+        "--request-timeout",
+        type=int,
+        default=DEFAULT_TRAFFIC_TIMEOUT,
+        help=f"Timeout per traffic request in seconds (default: {DEFAULT_TRAFFIC_TIMEOUT})",
+    )
+    parser.add_argument(
+        "--model",
+        default=DEFAULT_OLLAMA_MODEL,
+        help=f"Ollama model to use for diagnose/cli (default: {DEFAULT_OLLAMA_MODEL})",
+    )
+    parser.add_argument(
+        "--base-url",
+        default=DEFAULT_OLLAMA_BASE_URL,
+        help=f"Ollama base URL for diagnose/cli (default: {DEFAULT_OLLAMA_BASE_URL})",
+    )
     return parser
 
 
@@ -151,6 +199,22 @@ def main() -> None:
     if args.command == "status":
         result = get_cluster_snapshot(namespace=args.namespace)
         _print_result(_with_trace(command="status", payload=result, namespace=args.namespace))
+        return
+
+    if args.command == "discover":
+        result = discover_services(namespace=args.namespace, require_selector=True)
+        _print_result(_with_trace(command="discover", payload=result, namespace=args.namespace))
+        return
+
+    if args.command == "traffic":
+        result = run_traffic_emulator(
+            namespace=args.namespace,
+            services=_parse_services_arg(args.services),
+            requests_per_service=args.requests_per_service,
+            interval_seconds=args.traffic_interval,
+            request_timeout_seconds=args.request_timeout,
+        )
+        _print_result(_with_trace(command="traffic", payload=result, namespace=args.namespace))
         return
 
     if args.command == "snapshot":
@@ -201,7 +265,11 @@ def main() -> None:
         
         print("🚀 Initializing AI diagnosis agent...", file=__import__("sys").stderr)
         try:
-            agent = create_agent(namespace=args.namespace)
+            agent = create_agent(
+                namespace=args.namespace,
+                model=args.model,
+                base_url=args.base_url,
+            )
         except Exception as e:
             _print_result({
                 "ok": False,
@@ -233,7 +301,16 @@ def main() -> None:
     if args.command == "cli":
         print("🚀 Launching interactive diagnosis CLI...", file=__import__("sys").stderr)
         from cli import main as cli_main
-        cli_main()
+        cli_main(
+            argv=[
+                "--namespace",
+                args.namespace,
+                "--model",
+                args.model,
+                "--base-url",
+                args.base_url,
+            ]
+        )
         return
 
 

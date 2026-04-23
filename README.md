@@ -155,48 +155,43 @@ The default plan is one model path to reduce complexity during MVP delivery.
    \-- demo-script.md
 ```
 
+## Quick Start
+
+If you want the fastest path to the web UI, use the PowerShell launcher:
+
+```powershell
+.\start-diagnosis.ps1 web
+```
+
+That starts the Streamlit app and opens the browser at `http://localhost:8501`.
+
+For a full beginner-friendly walkthrough, see [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md).
+
 ## Setup Instructions
 
-### Prerequisites
+### Recommended Environment
 
-- Docker Desktop
-- Minikube or kind
-- kubectl
+This project is easiest to run from **Windows PowerShell** with:
+
+- Docker Desktop running
+- `kind`
+- `kubectl`
 - Python 3.10+
 - Ollama
+
+The web UI can bootstrap the demo cluster for you during initialization, so `kind` is the smoothest option.
 
 ### 1. Verify Local Tooling
 
 ```powershell
 docker --version
+kind --version
 kubectl version --client
-minikube version
 python --version
 ollama --version
 ```
 
-### 2. Start Local Kubernetes Cluster
-
-```powershell
-minikube start --cpus=4 --memory=8192
-kubectl get nodes
-```
-
-### 3. Create Project Namespace
-
-```powershell
-kubectl create namespace ai-ops --dry-run=client -o yaml | kubectl apply -f -
-kubectl config set-context --current --namespace=ai-ops
-```
-
-### 4. Deploy Demo Microservices (3 Services Minimum)
-
-```powershell
-kubectl apply -f k8s/manifests/
-kubectl get pods -w
-```
-
-### 5. Install Python Dependencies
+### 2. Create and Activate a Virtual Environment
 
 ```powershell
 python -m venv .venv
@@ -204,26 +199,99 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 6. Start Local Model Runtime
+If PowerShell blocks activation, run this once in PowerShell and try again:
 
-In a separate terminal:
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+### 3. Start Ollama and Download a Model
+
+In one terminal:
 
 ```powershell
 ollama serve
 ```
 
-In another terminal, pull a model:
+In another terminal:
 
 ```powershell
-ollama pull llama2
+ollama pull qwen:7b
 ```
 
-### 7. Launch AI Diagnosis Assistant
-
-**Interactive CLI (Recommended):**
+Optional environment variables:
 
 ```powershell
-python backend/app.py cli
+$env:OLLAMA_MODEL="qwen:7b"
+$env:OLLAMA_BASE_URL="http://localhost:11434"
+```
+
+If Ollama runs inside WSL but the app runs on Windows, start Ollama in WSL with:
+
+```bash
+OLLAMA_HOST=0.0.0.0 ollama serve
+```
+
+### 4. Launch the Web UI
+
+From the project root in PowerShell:
+
+```powershell
+.\start-diagnosis.ps1 web
+```
+
+This does two things:
+
+- starts the Streamlit server
+- opens `http://localhost:8501`
+
+### 5. Initialize the Demo Environment in the Browser
+
+After the page opens:
+
+- confirm the sidebar values
+- `Namespace`: `ai-ops`
+- `Ollama Model`: `qwen:7b`
+- `Ollama Base URL`: `http://localhost:11434`
+- click `Initialize`
+
+During initialization, the app:
+
+- creates or reuses the local `kind` cluster
+- switches `kubectl` context
+- deploys the demo microservices
+- starts background traffic generation
+- prepares the diagnosis agent
+
+When initialization finishes, the UI is ready to use.
+
+### 6. Operate the Web UI
+
+Use the two main modes:
+
+- `Diagnosis`: ask questions like `Why are the orders pods failing?`
+- `Chaos`: inject a safe fault, then switch back to `Diagnosis` to investigate it
+
+Helpful buttons in the UI:
+
+- `Analyze`: run AI diagnosis on your question
+- `Snapshot`: inspect the current cluster state
+- `Discover Services`: find the live services in the namespace
+- `Inject`: trigger a failure scenario
+- `Revert All`: remove injected faults
+
+### 7. CLI Alternative
+
+If you prefer the terminal:
+
+```powershell
+.\start-diagnosis.ps1 cli
+```
+
+Or run one diagnosis directly:
+
+```powershell
+.\start-diagnosis.ps1 diagnose --question "Why are orders failing?"
 ```
 
 **Web UI (Streamlit):**
@@ -242,8 +310,22 @@ streamlit run ui/streamlit_app.py
 **Single Diagnosis Query:**
 
 ```powershell
-python backend/app.py diagnose --question "Why are the orders pods failing?"
+python backend/app.py diagnose --question "Why are the orders pods failing?" --model qwen:7b --base-url http://localhost:11434
 ```
+
+**Discover Live Services in Namespace:**
+
+```powershell
+python backend/app.py discover --namespace ai-ops
+```
+
+**Generate Real In-Cluster Traffic (No Mock Data):**
+
+```powershell
+python backend/app.py traffic --namespace ai-ops --requests-per-service 30 --traffic-interval 1
+```
+
+This launches a short-lived traffic emulator pod in Kubernetes that sends real HTTP requests to discovered live Services and collects response metrics.
 
 ### 8. Validate End-to-End Flow
 

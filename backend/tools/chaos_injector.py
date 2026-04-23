@@ -127,6 +127,12 @@ def revert_fault(namespace: str = DEFAULT_NAMESPACE) -> Dict[str, object]:
     rollout_restart = _run_command(_kubectl(["rollout", "restart", *rollout_targets], namespace=namespace))
     step_results.append(rollout_restart)
 
+    for deployment in DEFAULT_ROLLOUT_DEPLOYMENTS:
+        rollout_status = _run_command(
+            _kubectl(["rollout", "status", f"deployment/{deployment}", "--timeout=120s"], namespace=namespace)
+        )
+        step_results.append(rollout_status)
+
     status_result = _run_command(_kubectl(["get", "pods", "-o", "wide"], namespace=namespace))
     step_results.append(status_result)
 

@@ -6,6 +6,7 @@ __pycache__/
 # Local virtual environments
 .venv/
 .venv
+.venv311
 
 # Runtime traces/logs
 backend/traces/*.json

@@ -19,10 +19,19 @@ param(
     
     [string]$Question = '',
     [string]$Namespace = 'ai-ops',
-    [string]$Model = 'llama2'
+    [string]$Model = 'qwen:7b',
+    [string]$BaseUrl = ''
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
+    if ($env:OLLAMA_BASE_URL) {
+        $BaseUrl = $env:OLLAMA_BASE_URL
+    } else {
+        $BaseUrl = 'http://localhost:11434'
+    }
+}
 
 # Colors for output
 function Write-Color($Message, $Color = 'White') {
@@ -59,34 +68,39 @@ function Check-Prerequisites {
     
     # Check venv activation
     if ($null -eq $env:VIRTUAL_ENV) {
-        Write-Color "⚠ Virtual environment not activated" -Color Yellow
+        Write-Color "Virtual environment not activated" -Color Yellow
         Write-Color "Activating .venv..." -Color Yellow
         & .\.venv\Scripts\Activate.ps1
     } else {
-        Write-Color "✓ Virtual environment active: $env:VIRTUAL_ENV" -Color Green
+        Write-Color "Virtual environment active: $env:VIRTUAL_ENV" -Color Green
     }
     
     # Check Ollama
     try {
-        $curlCheck = curl -s http://localhost:11434/api/tags 2>$null
-        if ($curlCheck) {
-            Write-Color "✓ Ollama running at http://localhost:11434" -Color Green
+        $ollamaResponse = Invoke-RestMethod -Uri "$BaseUrl/api/tags" -Method Get
+        if ($ollamaResponse) {
+            Write-Color "Ollama running at $BaseUrl" -Color Green
             
             # Check if model exists
-            if ($curlCheck -like "*$Model*" -or $curlCheck -like "*llama*") {
-                Write-Color "✓ Models available" -Color Green
+            $availableModels = @()
+            if ($ollamaResponse.models) {
+                $availableModels = @($ollamaResponse.models | ForEach-Object { $_.name })
+            }
+
+            if ($availableModels -contains $Model -or $availableModels.Count -gt 0) {
+                Write-Color "Models available" -Color Green
             } else {
-                Write-Color "⚠ No models detected. Run: ollama pull llama2" -Color Yellow
+                Write-Color "No models detected. Run: ollama pull $Model" -Color Yellow
             }
         } else {
-            Write-Color "✗ Ollama not responding. Start with: ollama serve" -Color Red
+            Write-Color "Ollama not responding at $BaseUrl" -Color Red
             Write-Color "  Starting Ollama in background..." -Color Yellow
             Start-Process ollama -ArgumentList "serve" -WindowStyle Hidden
             Start-Sleep -Seconds 3
         }
     } catch {
-        Write-Color "✗ Cannot connect to Ollama. Ensure it's running." -Color Red
-        Write-Color "  Start with: ollama serve" -Color Yellow
+        Write-Color "Cannot connect to Ollama at $BaseUrl." -Color Red
+        Write-Color "  If Ollama runs in WSL, start with OLLAMA_HOST=0.0.0.0 ollama serve" -Color Yellow
         exit 1
     }
 }
@@ -98,7 +112,7 @@ function Launch-CLI {
     Write-Color "Type /help for commands or ask questions directly" -Color Gray
     Write-Color "`n" -Color Gray
     
-    python backend/app.py cli --namespace $Namespace
+    python backend/app.py cli --namespace $Namespace --model $Model --base-url $BaseUrl
 }
 
 # Launch Streamlit Web UI
@@ -126,7 +140,7 @@ function Run-Diagnose {
     Write-Color "Namespace: $Namespace" -Color Cyan
     Write-Color "`n" -Color Gray
     
-    python backend/app.py diagnose --question $Question --namespace $Namespace
+    python backend/app.py diagnose --question $Question --namespace $Namespace --model $Model --base-url $BaseUrl
 }
 
 # Show help
@@ -146,7 +160,8 @@ function Show-Help {
     Write-Color "OPTIONS:" -Color Cyan
     Write-Color "  --question TEXT  Question to diagnose (required for diagnose mode)" -Color White
     Write-Color "  --namespace NS   Kubernetes namespace (default: ai-ops)" -Color White
-    Write-Color "  --model MODEL    Ollama model to use (default: llama2)" -Color White
+    Write-Color "  --model MODEL    Ollama model to use (default: qwen:7b)" -Color White
+    Write-Color "  --baseUrl URL    Ollama base URL (default: OLLAMA_BASE_URL or http://localhost:11434)" -Color White
     Write-Color ""
     
     Write-Color "EXAMPLES:" -Color Cyan
@@ -170,10 +185,12 @@ function Main {
     # Set environment
     $env:AI_K8S_NAMESPACE = $Namespace
     $env:OLLAMA_MODEL = $Model
+    $env:OLLAMA_BASE_URL = $BaseUrl
     
     Write-Color "`nConfiguration:" -Color Gray
     Write-Color "  Namespace: $Namespace" -Color Gray
     Write-Color "  Model: $Model" -Color Gray
+    Write-Color "  Ollama URL: $BaseUrl" -Color Gray
     Write-Color ""
     
     # Launch selected mode
