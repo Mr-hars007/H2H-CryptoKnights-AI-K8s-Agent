@@ -1,6 +1,0 @@
-spec:
-  ports:
-  - name: http
-    protocol: TCP
-    port: 80
-    targetPort: 5999

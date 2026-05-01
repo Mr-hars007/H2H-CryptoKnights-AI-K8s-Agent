@@ -48,7 +48,7 @@ def _print_result(result: Dict[str, Any]) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="H2H CryptoKnights AI K8s Agent - Phase 5 diagnosis integration",
+        description="ClusterSage - AI Kubernetes diagnosis and chaos testing",
     )
     parser.add_argument(
         "command",

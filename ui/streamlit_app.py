@@ -34,7 +34,7 @@ def cleanup() -> None:
 
 atexit.register(cleanup)
 
-st.set_page_config(page_title="AI K8s Diagnosis", layout="wide")
+st.set_page_config(page_title="ClusterSage", layout="wide")
 
 # Only refresh the dashboard if we are NOT currently analyzing
 if "analyzing" not in st.session_state:
@@ -138,7 +138,7 @@ with st.sidebar:
             st.warning("Enter a pod name first.")
 
 
-st.title("🔥 AI Kubernetes Diagnosis")
+st.title("ClusterSage")
 
 if not st.session_state.initialized:
     st.info("Click Initialize in the sidebar.")

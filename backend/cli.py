@@ -54,8 +54,8 @@ class Colors:
 def print_header() -> None:
     """Print welcome header with enhanced formatting."""
     print("\n" + "=" * 80)
-    print(f"{Colors.HEADER}{Colors.BOLD}H2H CryptoKnights: AI Kubernetes Diagnosis Assistant{Colors.RESET}")
-    print(f"{Colors.HEADER}Phase 6: Product Experience - Interactive Mode{Colors.RESET}")
+    print(f"{Colors.HEADER}{Colors.BOLD}ClusterSage{Colors.RESET}")
+    print(f"{Colors.HEADER}AI Kubernetes Diagnosis and Resilience Assistant{Colors.RESET}")
     print("=" * 80)
     
     print(f"\n{Colors.BOLD}Available Commands:{Colors.RESET}")

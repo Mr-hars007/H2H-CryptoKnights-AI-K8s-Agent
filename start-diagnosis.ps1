@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    H2H CryptoKnights Phase 5 - AI Diagnosis Loop Launcher
+    ClusterSage - AI Kubernetes Launcher
 
 .DESCRIPTION
     Quick launcher for Interactive CLI, Streamlit UI, or single diagnosis queries
@@ -145,7 +145,7 @@ function Run-Diagnose {
 
 # Show help
 function Show-Help {
-    Write-Title "H2H CryptoKnights - Phase 5 AI Diagnosis Launcher"
+    Write-Title "ClusterSage - AI Kubernetes Launcher"
     
     Write-Color "USAGE:" -Color Cyan
     Write-Color "  .\start-diagnosis.ps1 [MODE] [OPTIONS]" -Color White
